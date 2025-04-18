@@ -8,7 +8,7 @@ s = data{:,1};          % 提取弧长
 kappa_data = data{:,2:end}; % 提取曲率数据
 
 % 验证数据维度
-assert(size(kappa_data,2) == n, '曲率数据列数与指定的n值不符');
+assert(size(kappa_data,2) == n, 'Curvature data columns mismatch specified n');
 
 % 数据清洗
 valid_idx = all(~isnan([s, kappa_data]),2);
@@ -33,7 +33,7 @@ D = [cosd(theta), sind(theta), zeros(n,1)];      % 生成n×3方向矩阵
 % 可视化方向分布
 figure
 polarplot(deg2rad(theta), ones(n,1), 'ro-', 'LineWidth',2)
-title(['FBG阵列方向分布 (n=',num2str(n),')'])
+title(['FBG Array Orientation (n=',num2str(n),')'])
 
 %% 3. 曲率向量估计（正则化最小二乘）
 lambda = 1e-6; % 正则化系数
@@ -86,7 +86,7 @@ quiver3(r(1:50:end,1), r(1:50:end,2), r(1:50:end,3),...
         T(1:50:end,1), T(1:50:end,2), T(1:50:end,3),...
         0.5, 'Color',[0.2 0.6 0.2])
 xlabel('X [mm]'), ylabel('Y [mm]'), zlabel('Z [mm]')
-title(['三维重建曲线 (n=',num2str(n),' FBG)'])
+title(['3D Reconstructed Curve (n=',num2str(n),' FBG)'])
 axis equal tight
 grid on
 view(-30,30)
@@ -97,8 +97,8 @@ hold on
 plot(s, kappa_vectors(:,1), 'r-', 'LineWidth',1.5)
 plot(s, kappa_vectors(:,2), 'g-', 'LineWidth',1.5)
 plot(s, kappa_vectors(:,3), 'b-', 'LineWidth',1.5)
-xlabel('弧长 [mm]'), ylabel('曲率 [1/mm]')
-title('三轴曲率分量')
+xlabel('Arc Length [mm]'), ylabel('Curvature [1/mm]')
+title('Triaxial Curvature Components')
 legend({'X','Y','Z'}, 'Location','best')
 grid on
 
@@ -109,10 +109,10 @@ for i = 1:length(s)
     residuals(i) = norm(kappa_data(i,:)' - k_pred);
 end
 
-fprintf('\n===== 重建报告 =====\n')
-fprintf('平均残差: %.4f\n', mean(residuals))
-fprintf('最大残差: %.4f\n', max(residuals))
-fprintf('位置标准差: X=%.3f, Y=%.3f, Z=%.3f\n',...
+fprintf('\n===== Reconstruction Report =====\n')
+fprintf('Mean Residual: %.4f\n', mean(residuals))
+fprintf('Max Residual: %.4f\n', max(residuals))
+fprintf('Position STD: X=%.3f, Y=%.3f, Z=%.3f\n',...
     std(r(:,1)), std(r(:,2)), std(r(:,3)))
 
 %% 7. 数据输出

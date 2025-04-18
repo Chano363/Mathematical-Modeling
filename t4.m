@@ -1,4 +1,4 @@
 clear;clc;
-data = readtable('data.csv');
+data = readtable('data_t4.xls');
 n = 4;
 t4_calculation(data,n);
