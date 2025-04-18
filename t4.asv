@@ -1,0 +1,113 @@
+function t4_calculation(data, D)
+%% Input Parameters:
+% data: Table data with columns [s, kappa1, kappa2, ...]
+% D: Direction matrix (n×3)
+
+%% 1. Data Preprocessing
+s = data{:,1};          % Arc length
+kappa_data = data{:,2:end}; % Curvature measurements
+n = size(kappa_data,2); % Number of FBG arrays
+
+% Data cleaning
+valid_idx = all(~isnan([s, kappa_data]),2);
+s = s(valid_idx);
+kappa_data = kappa_data(valid_idx,:);
+[~, sort_idx] = sort(s);
+s = s(sort_idx);
+kappa_data = kappa_data(sort_idx,:);
+
+% Remove duplicates
+[~, unique_idx] = unique(s);
+if length(unique_idx) < length(s)
+    [s, ~, ic] = unique(s);
+    kappa_data = accumarray(ic, (1:length(ic)), [], @(x) mean(kappa_data(x,:),1));
+end
+
+%% 2. Direction Matrix Validation
+if size(D,2) ~= 3 || size(D,1) ~= n
+    error('Invalid direction matrix dimensions');
+end
+
+cond_number = cond(D'*D);
+fprintf('[Status] Direction matrix condition number: %.2e\n', cond_number);
+if cond_number > 1e3
+    error('Ill-conditioned direction matrix! Check orientation.');
+end
+
+%% 3. Curvature Vector Calculation (Regularized)
+kappa_vectors = zeros(length(s),3);
+lambda = 1e-6; % Regularization factor
+for i = 1:length(s)
+    k = kappa_data(i,:)';
+    kappa_vectors(i,:) = (D'*D + lambda*eye(3)) \ (D'*k);
+end
+
+%% 4. Curve Reconstruction
+T = zeros(length(s),3); % Tangent vectors
+N = zeros(length(s),3); % Normal vectors
+B = zeros(length(s),3); % Binormal vectors
+r = zeros(length(s),3); % Spatial coordinates
+
+% Initial conditions
+T(1,:) = [0 0 1];
+N(1,:) = kappa_vectors(1,:)/norm(kappa_vectors(1,:));
+B(1,:) = cross(T(1,:), N(1,:));
+r(1,:) = [0 0 0];
+
+% RK4 Integration
+h = mean(diff(s));
+for i = 2:length(s)
+    current_kappa = norm(kappa_vectors(i-1,:));
+    current_N = N(i-1,:);
+    
+    % RK4 stages
+    k1 = h * current_kappa * current_N;    
+    T_mid = T(i-1,:) + k1/2;
+    T_mid = T_mid/norm(T_mid);
+    k2 = h * current_kappa * current_N;    
+    T_end = T(i-1,:) + k2;
+    T_end = T_end/norm(T_end);
+    k3 = h * current_kappa * current_N;    
+    T(i,:) = T(i-1,:) + (k1 + 2*k2 + k3)/6;
+    T(i,:) = T(i,:)/norm(T(i,:));
+    N(i,:) = kappa_vectors(i,:)/norm(kappa_vectors(i,:));
+    B(i,:) = cross(T(i,:), N(i,:));
+    r(i,:) = r(i-1,:) + h*T(i-1,:);
+end
+
+%% 5. Visualization
+figure('Position', [100, 100, 1200, 500]);
+
+% Subplot 1: 3D Reconstruction
+subplot(1,2,1);
+plot3(r(:,1), r(:,2), r(:,3), 'b-', 'LineWidth', 1.5);
+hold on;
+scatter3(r(1:50:end,1), r(1:50:end,2), r(1:50:end,3),...
+    30, 'r', 'filled', 'MarkerEdgeColor','k');
+xlabel('X [mm]'); ylabel('Y [mm]'); zlabel('Z [mm]');
+title('3D Reconstructed Curve');
+axis equal tight;
+grid on;
+view(30, 30);
+
+% Subplot 2: Curvature Components
+subplot(1,2,2);
+hold on;
+plot(s, kappa_vectors(:,1), 'r-', 'LineWidth', 1.5);
+plot(s, kappa_vectors(:,2), 'g-', 'LineWidth', 1.5);
+plot(s, kappa_vectors(:,3), 'b-', 'LineWidth', 1.5);
+xlabel('Arc Length [mm]');
+ylabel('Curvature [1/mm]');
+title('Curvature Components');
+legend({'X','Y','Z'}, 'Location','best');
+grid on;
+
+%% 6. Data Output
+output_table = array2table([s, r],...
+    'VariableNames', {'ArcLength_mm','X_mm','Y_mm','Z_mm'});
+writetable(output_table, 'Reconstructed_Curve.csv');
+disp('=== Reconstruction Summary ===');
+disp(['Total points: ', num2str(length(s))]);
+disp(['Arc length range: ', num2str(min(s)), ' ~ ', num2str(max(s)), ' mm']);
+disp(['Max curvature: ', num2str(max(kappa_vectors(:)),'%.3f'), ' 1/mm']);
+end
